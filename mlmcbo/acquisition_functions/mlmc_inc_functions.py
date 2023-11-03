@@ -1,6 +1,5 @@
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
-import numpy as np
 import torch
 from botorch.acquisition import (
     AcquisitionFunction,
@@ -393,12 +392,9 @@ class TwoStepIncAntEI(qMultiStepLookahead):
         Returns:
              `q_aux` s.t. `q + q_aux = augmented_q_batch_size`
         """
-        num_auxiliary = np.dot(self.batch_sizes, np.cumprod(self.num_fantasies)).item()
-
         if self.fc == 1:
-            return 2 * num_auxiliary
-        else:
-            return num_auxiliary
+            return 2 * super()._num_auxiliary
+        return super()._num_auxiliary
 
     def get_multi_step_tree_input_representation(self, X: Tensor) -> List[Tensor]:
         r"""Get the multi-step tree representation of X.
