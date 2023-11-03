@@ -39,5 +39,4 @@ acquisition functions:
 - MLMC Two-Step Lookahead qEI
 
 ## License
-BoTorch is MIT licensed, as found in the [LICENSE](LICENSE) file.
 MLMCBO is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
