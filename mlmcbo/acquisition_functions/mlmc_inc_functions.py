@@ -1,6 +1,5 @@
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
-import numpy as np
 import torch
 from botorch.acquisition import (
     AcquisitionFunction,
@@ -33,7 +32,7 @@ class qEIMLMCOneStep:
             num_restarts: number of restarts for LBFGS
             raw_samples: number of raw samples for LBFGS
             antithetic_variates: use antithetic increments
-            batch_sizes: array for q, default is [2] (2-EI)
+            batch_sizes: array for q of q-EI, default is [2] (2-EI)
         """
         self.model = model
         self.bounds = bounds
@@ -48,8 +47,26 @@ class qEIMLMCOneStep:
         return IIDNormalSampler(sample_shape=torch.Size([num_samples]), resample=False, seed=seed)
 
     def sample_candidate(self, l, dl, num_samples, match=None):
-        r"""Generate new observations with MLMC"""
+        r"""Generate new observations with MLMC
+        Args:
+            l: index level of estimation (starting from 0)
+            dl: starting level (l <- l + dl)
+            num_samples: number of outer samples
+            match: if True matching the optimizer generated at level l with level l-1,
+                   so that MLMC tracks the same optimizer among levels;
+                   No need to match at level 0
+        Returns:
+            Three elements tuple
+            new_candidate: next candidate point by MLMC (optimizer)
+            new_value: corresponding value of objective by MLMC (optimum)
+            match_candidate: candidate used for matching in the next level
+        """
+
+        # number of inner samples
         M = 2 ** (l + dl)
+
+        # fixed seed of base samples for coupling
+        # No need to coupling for level 0 (single level estimator instead of increments)
         seed_out, seed_in = (torch.randint(0, 10000000, (1,)).item() for _ in range(2)) if l != 0 else (None, None)
 
         if l == 0:
@@ -69,7 +86,7 @@ class qEIMLMCOneStep:
                 diff_c = torch.argmin(torch.norm(new_candidate_f - new_candidate_c))
                 new_candidate = new_candidate_f[diff_f] - new_candidate_c[diff_c]
                 new_value = new_value_f[diff_f] - new_value_c[diff_c]
-                match_candidate = new_candidate_c[diff_c]
+                match_candidate = new_candidate_f[diff_f]
             else:
                 new_candidate_f, new_value_f = self.get_candidates(num_samples, M, seed_out, seed_in)
                 new_candidate_c, new_value_c = self.get_candidates(num_samples, M // ant_fac, seed_out, seed_in,
@@ -89,7 +106,18 @@ class qEIMLMCOneStep:
                                           return_best=return_best)
 
     def get_next_point_oneqEI(self, samplers=None, inner_mc_samplers=None, antithetic=False, return_best=True):
-        r"""Generate the next observation."""
+        r"""Generate the next observation of single one-step lookahead EI.
+        Args:
+            samplers: outer samplers
+            inner_mc_samplers: inner samplers
+            antithetic: switch between standard method and antithetic approach
+            return_best: whether to return the best result of objective function optimization
+        Returns:
+            new_candidate: next candidate point (optimizer)
+            new_value: corresponding value of objective (optimum)
+        """
+
+        # initialize the acquisition function for the zero and first steps
         valfunc_cls = [ExpectedImprovement, qExpectedImprovementAnt if antithetic else qExpectedImprovement]
         valfunc_argfacs = [make_best_f, make_best_f]
 
@@ -215,6 +243,7 @@ class qExpectedImprovementAnt(qExpectedImprovement):
         samples = self.sampler(posterior)
         obj = self.objective(samples, X=X)
 
+        # separate the samples and compute each estimation for antithetic approach
         obj_1 = obj[1::2]
         obj_1 = (obj_1 - self.best_f.unsqueeze(-1).to(obj)).clamp_min(0)
         q_ei_1 = obj_1.max(dim=-1)[0].mean(dim=0)
@@ -393,12 +422,9 @@ class TwoStepIncAntEI(qMultiStepLookahead):
         Returns:
              `q_aux` s.t. `q + q_aux = augmented_q_batch_size`
         """
-        num_auxiliary = np.dot(self.batch_sizes, np.cumprod(self.num_fantasies)).item()
-
         if self.fc == 1:
-            return 2 * num_auxiliary
-        else:
-            return num_auxiliary
+            return 2 * super()._num_auxiliary
+        return super()._num_auxiliary
 
     def get_multi_step_tree_input_representation(self, X: Tensor) -> List[Tensor]:
         r"""Get the multi-step tree representation of X.

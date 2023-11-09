@@ -137,3 +137,4 @@ new_candidate, _, _ = optimize_mlmc(
     var0=1
 )
 print(f'New candidate [MLMC Two-Step Lookahead qEI] = {new_candidate}')
+
