@@ -32,12 +32,17 @@ pip install -e .
 
 ## Getting Started
 
-File ```tests.py``` in the ```tutorials``` folder demonstrates a basic usage of the MLMC q-Expected Improvement (qEI) acquisition functions:
+File ```tests.py``` in the ```tutorials``` folder demonstrates basic usage of the MLMC q-Expected Improvement (qEI) acquisition functions:
 
 - MC One-Step Lookahead EI
 - MC One-Step Lookahead qEI
 - MLMC One-Step Lookahead qEI
 - MLMC Two-Step Lookahead qEI
+- MLMC Two-Step Lookahead qEI (beta)
+- 
+File ```testWholeBo.py``` in the same folder demonstrates an example of a whole BO algorithm using MLMC for 2-EI and plots the results..
+It optimizes a self-defined function defined in ```objectiveFunction.py``` in the ```utils``` folder.
+=======
 
 ## License
 MLMCBO is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
