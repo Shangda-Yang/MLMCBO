@@ -36,7 +36,11 @@ acquisition functions:
 - MC One-Step Lookahead EI
 - MC One-Step Lookahead qEI
 - MLMC One-Step Lookahead qEI
-- MLMC Two-Step Lookahead qEI
+
+[//]: # (- MLMC Two-Step Lookahead qEI)
+
+File ```testWholeBo.py``` in the ```tutorials``` folder demonstrates an example of whole BO algorithm using MLMC for 2-EI.
+It optimize a self-defined function defined in ```objectiveFunction.py``` in the ```utils``` folder.
 
 ## License
 MLMCBO is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
