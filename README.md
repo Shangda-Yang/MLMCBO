@@ -39,7 +39,7 @@ File ```tests.py``` in the ```tutorials``` folder demonstrates basic usage of th
 - MLMC One-Step Lookahead qEI
 - MLMC Two-Step Lookahead qEI
 - MLMC Two-Step Lookahead qEI (beta)
-- 
+
 File ```testWholeBo.py``` in the same folder demonstrates an example of a whole BO algorithm using MLMC for 2-EI and plots the results..
 It optimizes a self-defined function defined in ```objectiveFunction.py``` in the ```utils``` folder.
 =======
