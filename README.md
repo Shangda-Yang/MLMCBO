@@ -1,7 +1,9 @@
 # MLMCBO
 
-MLMCBO is a library for Multilevel Monte Carlo Bayesian Optimization based
-on [BoTorch](https://github.com/pytorch/botorch/tree/main).
+MLMCBO is a library for the Multilevel Monte Carlo Bayesian Optimization method [to be linked to arxiv paper]. The package is based on the package [BoTorch](https://github.com/pytorch/botorch/tree/main).
+
+**TL;DR** Multilevel Monte Carlo accelerates nested Monte Carlo approximations (sometimes by several orders of magnitude). The current package leverages this technology to speed up the evaluation of lookahead acquisition functions for Bayesian optimization.
+
 
 ## Installation
 
@@ -30,17 +32,12 @@ pip install -e .
 
 ## Getting Started
 
-File ```tests.py``` in the ```tutorials``` folder demonstrates a basic usage of the MLMC q-Expected Improvement (qEI)
-acquisition functions:
+File ```tests.py``` in the ```tutorials``` folder demonstrates a basic usage of the MLMC q-Expected Improvement (qEI) acquisition functions:
 
 - MC One-Step Lookahead EI
 - MC One-Step Lookahead qEI
 - MLMC One-Step Lookahead qEI
-
-[//]: # (- MLMC Two-Step Lookahead qEI)
-
-File ```testWholeBo.py``` in the ```tutorials``` folder demonstrates an example of whole BO algorithm using MLMC for 2-EI.
-It optimize a self-defined function defined in ```objectiveFunction.py``` in the ```utils``` folder.
+- MLMC Two-Step Lookahead qEI
 
 ## License
 MLMCBO is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
