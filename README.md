@@ -37,9 +37,7 @@ File ```tests.py``` in the ```tutorials``` folder demonstrates a basic usage of 
 - MC One-Step Lookahead EI
 - MC One-Step Lookahead qEI
 - MLMC One-Step Lookahead qEI
-- MLMC Two-Step Lookahead qEI (beta)
-
-The file ```testWholeBO.py``` in the same folder executes a full BO loop, and plots the results.
+- MLMC Two-Step Lookahead qEI
 
 ## License
 MLMCBO is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.

@@ -1,3 +1,4 @@
+import time
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 import torch
@@ -6,14 +7,15 @@ from botorch.acquisition import (
     ExpectedImprovement,
     MCAcquisitionObjective,
     qExpectedImprovement,
-    qMultiStepLookahead  # Re-written to allow passing inner samplers
+    qMultiStepLookahead, PosteriorMean, MCAcquisitionFunction  # Re-written to allow passing inner samplers
 )
-from botorch.acquisition.multi_step_lookahead import make_best_f, _construct_sample_weights
+from botorch.acquisition.multi_step_lookahead import make_best_f, _construct_sample_weights, _construct_inner_samplers
 from botorch.acquisition.objective import PosteriorTransform
+from botorch.exceptions import UnsupportedError
 from botorch.models.model import Model
 from botorch.optim import optimize_acqf
 from botorch.sampling.base import MCSampler
-from botorch.sampling.normal import IIDNormalSampler
+from botorch.sampling.normal import IIDNormalSampler, SobolQMCNormalSampler
 from botorch.utils.transforms import t_batch_mode_transform, concatenate_pending_points, match_batch_shape
 from torch import Tensor
 from torch.nn import ModuleList
@@ -24,27 +26,25 @@ TAcqfArgConstructor = Callable[[Model, Tensor], Dict[str, Any]]
 class qEIMLMCOneStep:
     r"""Class for one-step lookahead q-EI with MLMC (2-EI) by default"""
 
-    def __init__(self, model, bounds, num_restarts, raw_samples, antithetic_variates=True, batch_sizes=[2]):
+    def __init__(self, model, bounds, num_restarts, raw_samples, batch_sizes=[2]):
         r"""
         Args:
             bounds: bounds of objective function
             model: a fitted single-outcome model
             num_restarts: number of restarts for LBFGS
             raw_samples: number of raw samples for LBFGS
-            antithetic_variates: use antithetic increments
             batch_sizes: array for q of q-EI, default is [2] (2-EI)
         """
         self.model = model
         self.bounds = bounds
         self.num_restarts = num_restarts
         self.raw_samples = raw_samples
-        self.antithetic_variates = antithetic_variates
         self.batch_sizes = batch_sizes
 
     @staticmethod
     def _create_sampler(num_samples, seed):
         r"""Initialize sampler with a seed for coupling"""
-        return IIDNormalSampler(sample_shape=torch.Size([num_samples]), resample=False, seed=seed)
+        return IIDNormalSampler(sample_shape=torch.Size([num_samples]), seed=seed)
 
     def sample_candidate(self, l, dl, num_samples, match=None):
         r"""Generate new observations with MLMC
@@ -67,50 +67,41 @@ class qEIMLMCOneStep:
 
         # fixed seed of base samples for coupling
         # No need to coupling for level 0 (single level estimator instead of increments)
-        seed_out, seed_in = (torch.randint(0, 10000000, (1,)).item() for _ in range(2)) if l != 0 else (None, None)
+        seed_out, seed_in = (torch.randint(0, 10000000, (1,)).item() for _ in range(2))
+
+        samplers = [self._create_sampler(num_samples, seed_out)]
+        inner_mc_samplers = [None, self._create_sampler(M, seed_in)]
 
         if l == 0:
-            new_candidate, new_value = self.get_candidates(num_samples, M, seed_out, seed_in)
+            new_candidate, new_value = self.get_candidates(samplers, inner_mc_samplers)
             match_candidate = new_candidate
-            return new_candidate, new_value, match_candidate
         else:
-
-            ant_fac = 1 if self.antithetic_variates else 2
-
             if match is not None:
-                new_candidate_f, new_value_f = self.get_candidates(num_samples, M, seed_out, seed_in, return_best=False)
-                new_candidate_c, new_value_c = self.get_candidates(num_samples, M // ant_fac, seed_out, seed_in,
-                                                                   antithetic=self.antithetic_variates,
+                new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers,
                                                                    return_best=False)
-                diff_f = torch.argmin(torch.norm(match - new_candidate_f))
-                diff_c = torch.argmin(torch.norm(new_candidate_f - new_candidate_c))
+                new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers,
+                                                                   antithetic=True,
+                                                                   return_best=False)
+                diff_c = torch.argmin(torch.norm(match - new_candidate_c, dim=2))
+                diff_f = torch.argmin(torch.norm(new_candidate_f - new_candidate_c[diff_c], dim=2))
                 new_candidate = new_candidate_f[diff_f] - new_candidate_c[diff_c]
                 new_value = new_value_f[diff_f] - new_value_c[diff_c]
                 match_candidate = new_candidate_f[diff_f]
             else:
-                new_candidate_f, new_value_f = self.get_candidates(num_samples, M, seed_out, seed_in)
-                new_candidate_c, new_value_c = self.get_candidates(num_samples, M // ant_fac, seed_out, seed_in,
-                                                                   antithetic=self.antithetic_variates)
+                new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers)
+                new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers)
                 new_candidate = new_candidate_f - new_candidate_c
                 new_value = new_value_f - new_value_c
                 match_candidate = new_candidate_c
 
         return new_candidate, new_value, match_candidate
 
-    def get_candidates(self, num_samples, M, seed_out=None, seed_in=None, antithetic=False, return_best=True):
-        samplers = [self._create_sampler(num_samples, seed_out)]
-        inner_mc_samplers = [None, self._create_sampler(M, seed_in)]
-        return self.get_next_point_oneqEI(samplers=samplers,
-                                          inner_mc_samplers=inner_mc_samplers,
-                                          antithetic=antithetic,
-                                          return_best=return_best)
-
-    def get_next_point_oneqEI(self, samplers=None, inner_mc_samplers=None, antithetic=False, return_best=True):
+    def get_candidates(self, samplers, inner_mc_samplers, antithetic=False, return_best=True):
         r"""Generate the next observation of single one-step lookahead EI.
         Args:
-            samplers: outer samplers
-            inner_mc_samplers: inner samplers
-            antithetic: switch between standard method and antithetic approach
+            samplers: samplers for outer MC
+            inner_mc_samplers: samplers for inner MC
+            antithetic: whether to compute antithetic estimator
             return_best: whether to return the best result of objective function optimization
         Returns:
             new_candidate: next candidate point (optimizer)
@@ -118,11 +109,8 @@ class qEIMLMCOneStep:
         """
 
         # initialize the acquisition function for the zero and first steps
-        valfunc_cls = [ExpectedImprovement, qExpectedImprovementAnt if antithetic else qExpectedImprovement]
+        valfunc_cls = [ExpectedImprovement, qExpectedImprovement if antithetic is False else qExpectedImprovementAnt]
         valfunc_argfacs = [make_best_f, make_best_f]
-
-        samplers = samplers
-        inner_mc_samplers = inner_mc_samplers
 
         oneqEI = CustomqMultiStepLookahead(
             model=self.model,
@@ -166,22 +154,57 @@ class CustomqMultiStepLookahead(qMultiStepLookahead):
             X_pending: Optional[Tensor] = None,
             collapse_fantasy_base_samples: bool = True
     ) -> None:
-        super().__init__(
-            model=model,
-            batch_sizes=batch_sizes,
-            num_fantasies=num_fantasies,
-            samplers=samplers,
-            valfunc_cls=valfunc_cls,
-            valfunc_argfacs=valfunc_argfacs,
-            objective=objective,
-            posterior_transform=posterior_transform,
-            inner_mc_samples=inner_mc_samples,
-            X_pending=X_pending,
-            collapse_fantasy_base_samples=collapse_fantasy_base_samples,
-        )
+        r"""rewrite the initializer of qMultistepLookahead by allowing passing inner samplers"""
 
+        if objective is not None and not isinstance(objective, MCAcquisitionObjective):
+            raise UnsupportedError(
+                "`qMultiStepLookahead` got a non-MC `objective`. This is not supported."
+                " Use `posterior_transform` and `objective=None` instead."
+            )
+
+        super(MCAcquisitionFunction, self).__init__(model=model)
+        self.batch_sizes = batch_sizes
+        if not ((num_fantasies is None) ^ (samplers is None)):
+            raise UnsupportedError(
+                "qMultiStepLookahead requires exactly one of `num_fantasies` or "
+                "`samplers` as arguments."
+            )
+        if samplers is None:
+            # If collapse_fantasy_base_samples is False, the `batch_range_override`
+            # is set on the samplers during the forward call.
+            samplers: List[MCSampler] = [
+                SobolQMCNormalSampler(sample_shape=torch.Size([nf]))
+                for nf in num_fantasies
+            ]
+        else:
+            num_fantasies = [sampler.sample_shape[0] for sampler in samplers]
+        self.num_fantasies = num_fantasies
+        # By default do not use stage values and use PosteriorMean as terminal value
+        # function (= multi-step KG)
+        if valfunc_cls is None:
+            valfunc_cls = [None for _ in num_fantasies] + [PosteriorMean]
         if inner_mc_samplers is not None:
-            self.inner_samplers = ModuleList(inner_mc_samplers)
+            inner_samplers = inner_mc_samplers
+        else:
+            if inner_mc_samples is None:
+                inner_mc_samples = [None] * (1 + len(num_fantasies))
+            inner_samplers = _construct_inner_samplers(
+                batch_sizes=batch_sizes,
+                valfunc_cls=valfunc_cls,
+                objective=objective,
+                inner_mc_samples=inner_mc_samples,
+            )
+        if valfunc_argfacs is None:
+            valfunc_argfacs = [None] * (1 + len(batch_sizes))
+
+        self.objective = objective
+        self.posterior_transform = posterior_transform
+        self.set_X_pending(X_pending)
+        self.samplers = ModuleList(samplers)
+        self.inner_samplers = ModuleList(inner_samplers)
+        self._valfunc_cls = valfunc_cls
+        self._valfunc_argfacs = valfunc_argfacs
+        self._collapse_fantasy_base_samples = collapse_fantasy_base_samples
 
 
 class qExpectedImprovementAnt(qExpectedImprovement):
