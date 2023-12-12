@@ -1,15 +1,12 @@
 import os
-import time
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
-from mlmcbo.acquisition_functions.mlmc_inc_functions import qEIMLMCOneStep
 from mlmcbo.utils.objectiveFunctions import SelfDefinedFunction
-from mlmcbo.utils.model_fit import GPmodel
-from mlmcbo.utils.optimize_mlmc import optimize_mlmc
-
 import warnings
+from tutorials.runBO import runBO
+
 warnings.filterwarnings("ignore")
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -40,13 +37,12 @@ raw_samples = 512
 
 R = 20
 dl = 3
-alpha = 1
-beta = 1.5
-gamma = 1
 
-results = torch.zeros(R, n_runs)
-candidates = torch.zeros(R, n_runs, dim)
-costs = torch.zeros(R, n_runs)
+results_ml = torch.zeros(R, n_runs)
+costs_ml = torch.zeros(R, n_runs)
+
+results_sl = torch.zeros(R, n_runs)
+costs_sl = torch.zeros(R, n_runs)
 
 reference = target.optimal_value
 eps = 0.2
@@ -59,63 +55,55 @@ for i in range(R):
 
     relative[i] = (torch.max(train_y) - reference) ** 2
 
-    model = GPmodel(train_x, train_y)
-
-    qEI = qEIMLMCOneStep(
-        model=model,
-        bounds=bounds,
-        num_restarts=num_restarts,
-        raw_samples=raw_samples
-    )
-
     print("Realisation {}.".format(i))
     print("--------------------------------------------")
+    print("MLMC starts")
+    print("********************************************")
 
-    for j in range(n_runs):
-        start_time = time.time()
-        new_candidate, _, _ = optimize_mlmc(
-            inc_function=qEI,
-            eps=eps,
-            dl=dl,
-            alpha=1,
-            beta=1.5,
-            gamma=1,
-            meanc=1,
-            varc=1,
-            var0=1
-        )
+    bo_mlmc = runBO(target=target,
+                    train_x=train_x,
+                    train_y=train_y,
+                    n_runs=n_runs,
+                    bounds=bounds,
+                    num_restarts=num_restarts,
+                    raw_samples=raw_samples,
+                    eps=eps,
+                    ML=True,
+                    dl=dl)
+    results_ml[i, :], costs_ml[i, :] = bo_mlmc.run()
 
-        new_result = target(new_candidate).unsqueeze(-1)
+    print("MC starts")
+    print("********************************************")
+    bo_mc = runBO(target=target,
+                  train_x=train_x,
+                  train_y=train_y,
+                  n_runs=n_runs,
+                  bounds=bounds,
+                  num_restarts=num_restarts,
+                  raw_samples=raw_samples,
+                  eps=eps,
+                  ML=False)
+    results_sl[i, :], costs_sl[i, :] = bo_mc.run()
 
-        cost = time.time() - start_time
 
-        train_x = torch.cat([train_x, new_candidate])
-        train_y = torch.cat([train_y, new_result])
+def compute_metric(results, costs, reference, relative):
+    # compute the NMSE, error bar, cumulative costs
+    error = (results.cpu() - reference)
+    MSE = torch.sum(error ** 2 / relative, dim=0) / R
+    errorBar = 1.96 * torch.std(error ** 2 / relative, dim=0) / np.sqrt(len(MSE))
+    Cost = torch.mean(torch.cumsum(costs, dim=1), dim=0)
+    return MSE, errorBar, Cost
 
-        model = GPmodel(train_x, train_y)
-        qEI.model = model
-
-        best_candidate = train_x[torch.argmax(train_y)]
-        best_result = target(best_candidate).unsqueeze(-1)
-
-        results[i, j] = best_result
-
-        costs[i, j] = cost
-
-        print("Iteration {} finished, MLMC time {:.4f}".format(j, cost))
-
-error = (results.cpu() - reference)
-MSE = torch.sum(error ** 2 / relative, dim=0) / R
-errorBar = 1.96 * torch.std(error ** 2 / relative, dim=0) / np.sqrt(len(MSE))
-
-Cost = torch.mean(torch.cumsum(costs, dim=1), dim=0)
+MSE_ml, errorBar_ml, Cost_ml = compute_metric(results_ml, costs_ml, reference, relative)
+MSE_sl, errorBar_sl, Cost_sl = compute_metric(results_sl, costs_sl, reference, relative)
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 8))
 fig.tight_layout(pad=10.0)
-ax.errorbar(Cost, MSE, xerr=None, yerr=errorBar, fmt='--o', capsize=3)
+ax.errorbar(Cost_ml, MSE_ml, xerr=None, yerr=errorBar_ml, fmt='--o', capsize=3)
+ax.errorbar(Cost_sl, MSE_sl, xerr=None, yerr=errorBar_sl, fmt='--o', capsize=3)
 ax.grid()
-ax.legend(["MLMC"], fontsize=20, loc="lower left")
-ax.set_xlabel("Cumulative wall time in second", fontsize=20)
+ax.legend(["MLMC", "MC"], fontsize=20, loc="lower left")
+ax.set_xlabel("Expected cumulative wall time in second", fontsize=20)
 ax.set_ylabel("NMSE", fontsize=20)
 ax.tick_params(axis='both', labelsize=15)
 ax.set_yscale("log")
@@ -123,3 +111,6 @@ ax.xaxis.get_major_formatter()
 ax.yaxis.set_major_formatter(FormatStrFormatter('%.2e'))
 ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 plt.show()
+
+
+
