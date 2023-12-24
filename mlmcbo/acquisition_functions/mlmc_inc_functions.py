@@ -264,16 +264,26 @@ class qExpectedImprovementAnt(qExpectedImprovement):
             X=X, posterior_transform=self.posterior_transform
         )
         samples = self.sampler(posterior)
-        obj = self.objective(samples, X=X)
+        # obj = self.objective(samples, X=X)
 
-        # separate the samples and compute each estimation for antithetic approach
-        obj_1 = obj[1::2]
-        obj_1 = (obj_1 - self.best_f.unsqueeze(-1).to(obj)).clamp_min(0)
+        # # separate the samples and compute each estimation for antithetic approach
+        # obj_1 = obj[1::2]
+        # obj_1 = (obj_1 - self.best_f.unsqueeze(-1).to(obj)).clamp_min(0)
+        # q_ei_1 = obj_1.max(dim=-1)[0].mean(dim=0)
+        # obj_2 = obj[::2]
+        # obj_2 = (obj_2 - self.best_f.unsqueeze(-1).to(obj)).clamp_min(0)
+        # q_ei_2 = obj_2.max(dim=-1)[0].mean(dim=0)
+        # return (q_ei_1 + q_ei_2) / 2
+
+        obj_1 = self.objective(samples[::2], X=X)
+        obj_1 = (obj_1 - self.best_f.unsqueeze(-1).to(obj_1)).clamp_min(0)
         q_ei_1 = obj_1.max(dim=-1)[0].mean(dim=0)
-        obj_2 = obj[::2]
-        obj_2 = (obj_2 - self.best_f.unsqueeze(-1).to(obj)).clamp_min(0)
+
+        obj_2 = self.objective(samples[1::2], X=X)
+        obj_2 = (obj_2 - self.best_f.unsqueeze(-1).to(obj_2)).clamp_min(0)
         q_ei_2 = obj_2.max(dim=-1)[0].mean(dim=0)
-        return (q_ei_1 + q_ei_2) / 2
+
+        return (q_ei_1 + q_ei_2)/2
 
 
 class qEIMLMCTwoStep:
