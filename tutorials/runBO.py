@@ -35,6 +35,7 @@ class runBO():
         self.num_restarts = num_restarts
         self.raw_samples = raw_samples
         self.eps = eps
+        self.q = q
         self.dl = dl
         self.ML = ML
 
@@ -50,7 +51,7 @@ class runBO():
                     bounds=self.bounds,
                     num_restarts=self.num_restarts,
                     raw_samples=self.raw_samples,
-                    q=q
+                    q=self.q
                 )
                 start_time = time.time()
                 new_candidate, _, _ = optimize_mlmc(inc_function=qEI,
@@ -70,7 +71,7 @@ class runBO():
                 num_samples = np.round((1 / np.power(self.eps, 2))).astype(int)
                 sampler = IIDNormalSampler(sample_shape=torch.Size([num_samples]))
                 samplers = [sampler]
-                if q == 1:
+                if self.q == 1:
                     inner_mc_samplers = [None, IIDNormalSampler(sample_shape=torch.Size([num_samples]))]
                     valfunc_cls = [ExpectedImprovement, qExpectedImprovement]
                 else:
@@ -83,7 +84,7 @@ class runBO():
                                                 inner_mc_samplers=inner_mc_samplers,
                                                 valfunc_cls=valfunc_cls,
                                                 valfunc_argfacs=valfunc_argfacs)
-                q = qEI.get_augmented_q_batch_size(q)
+                q = qEI.get_augmented_q_batch_size(self.q)
                 start = time.time()
                 new_candidate, _ = optimize_acqf(acq_function=qEI,
                                                  bounds=self.bounds,
