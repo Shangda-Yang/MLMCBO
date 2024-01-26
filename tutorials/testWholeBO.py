@@ -89,7 +89,7 @@ for i in range(R):
                   num_restarts=num_restarts,
                   raw_samples=raw_samples,
                   eps=eps,
-                  q=1
+                  q=1,
                   ML=False)
     results_sl[i, :], costs_sl[i, :] = bo_mc.run()
 
