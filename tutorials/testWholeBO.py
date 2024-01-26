@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import torch
-from botorch.test_functions import Ackley
+from botorch.test_functions import Ackley, Hartmann
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 
@@ -74,6 +74,7 @@ for i in range(R):
                     num_restarts=num_restarts,
                     raw_samples=raw_samples,
                     eps=eps,
+                    q=1,
                     ML=True,
                     dl=dl)
     results_ml[i, :], costs_ml[i, :] = bo_mlmc.run()
@@ -88,6 +89,7 @@ for i in range(R):
                   num_restarts=num_restarts,
                   raw_samples=raw_samples,
                   eps=eps,
+                  q=1
                   ML=False)
     results_sl[i, :], costs_sl[i, :] = bo_mc.run()
 

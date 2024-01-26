@@ -24,6 +24,7 @@ class runBO():
                  num_restarts,
                  raw_samples,
                  eps,
+                 q=1,
                  ML=True,
                  dl=0):
         self.target = target
@@ -49,7 +50,7 @@ class runBO():
                     bounds=self.bounds,
                     num_restarts=self.num_restarts,
                     raw_samples=self.raw_samples,
-                    q=2
+                    q=q
                 )
                 start_time = time.time()
                 new_candidate, _, _ = optimize_mlmc(inc_function=qEI,
@@ -67,9 +68,14 @@ class runBO():
                 print("Iteration {} finished, MLMC time {:.4f}".format(j, costs[:, j].item()))
             else:
                 num_samples = np.round((1 / np.power(self.eps, 2))).astype(int)
-                samplers = [IIDNormalSampler(sample_shape=torch.Size([num_samples]))]
-                inner_mc_samplers = [None, IIDNormalSampler(sample_shape=torch.Size([num_samples]))]
-                valfunc_cls = [ExpectedImprovement, qExpectedImprovement]
+                sampler = IIDNormalSampler(sample_shape=torch.Size([num_samples]))
+                samplers = [sampler]
+                if q == 1:
+                    inner_mc_samplers = [None, IIDNormalSampler(sample_shape=torch.Size([num_samples]))]
+                    valfunc_cls = [ExpectedImprovement, qExpectedImprovement]
+                else:
+                    inner_mc_samplers = [sampler, IIDNormalSampler(sample_shape=torch.Size([num_samples]))]
+                    valfunc_cls = [qExpectedImprovement, qExpectedImprovement]
                 valfunc_argfacs = [make_best_f, make_best_f]
                 qEI = CustomqMultiStepLookahead(model=model,
                                                 batch_sizes=[2],
@@ -77,7 +83,7 @@ class runBO():
                                                 inner_mc_samplers=inner_mc_samplers,
                                                 valfunc_cls=valfunc_cls,
                                                 valfunc_argfacs=valfunc_argfacs)
-                q = qEI.get_augmented_q_batch_size(1)
+                q = qEI.get_augmented_q_batch_size(q)
                 start = time.time()
                 new_candidate, _ = optimize_acqf(acq_function=qEI,
                                                  bounds=self.bounds,
