@@ -27,7 +27,7 @@ def optimize_mlmc(inc_function, eps, dl, alpha=1, beta=1.5, gamma=1, meanc=1, va
     L = np.maximum(np.ceil(np.log2(np.sqrt(2) * meanc / (eps * (2 ** alpha - 1))) / alpha).astype(int), dl + 1)
     levels = np.arange(dl, L + 1)
 
-    Ncon = (np.sum(np.sqrt(varc * 2 ** (-levels * (beta - gamma)))) + np.sqrt(var0 * 2 ** gamma)) / eps ** 2
+    Ncon = (np.sum(np.sqrt(varc * 2 ** (-levels * (beta - gamma)))) + np.sqrt(var0 * 2 ** gamma)) / (eps ** 2)
     # number of outer samples at each level
     Nl = np.ceil(np.maximum(Ncon * np.sqrt(varc * 2 ** (-levels * (beta + gamma))), 2)).astype(int)
 
@@ -38,9 +38,9 @@ def optimize_mlmc(inc_function, eps, dl, alpha=1, beta=1.5, gamma=1, meanc=1, va
     # matching optimizer such that the optimizers at levels correspond
     match = None
     for level, n in zip(levels - dl, Nl):
-        zl, *res = inc_function.sample_candidate(level, dl, n, match=match)
-        if len(res) == 2:
-            fl, match = res
-            f += fl
+        zl, fl, match = inc_function.sample_candidate(level, dl, n, match=match)
+        f += fl
         z += zl
     return z, f, Nl
+
+

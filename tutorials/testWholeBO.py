@@ -1,11 +1,17 @@
 import os
 import numpy as np
 import torch
+from botorch.test_functions import Ackley, Hartmann
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
+
+from mlmcbo.utils.model_fit import GPmodel
 from mlmcbo.utils.objectiveFunctions import SelfDefinedFunction
 import warnings
-from tutorials.runBO import runBO
+from runBO import runBO
+
+import faulthandler
+faulthandler.enable()
 
 warnings.filterwarnings("ignore")
 
@@ -68,6 +74,7 @@ for i in range(R):
                     num_restarts=num_restarts,
                     raw_samples=raw_samples,
                     eps=eps,
+                    q=1,
                     ML=True,
                     dl=dl)
     results_ml[i, :], costs_ml[i, :] = bo_mlmc.run()
@@ -82,6 +89,7 @@ for i in range(R):
                   num_restarts=num_restarts,
                   raw_samples=raw_samples,
                   eps=eps,
+                  q=1,
                   ML=False)
     results_sl[i, :], costs_sl[i, :] = bo_mc.run()
 
@@ -111,6 +119,3 @@ ax.xaxis.get_major_formatter()
 ax.yaxis.set_major_formatter(FormatStrFormatter('%.2e'))
 ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 plt.show()
-
-
-
