@@ -7,7 +7,9 @@ setup(
     install_requires=[
         'botorch==0.9.2',
         'numpy>=1.18.0',
-        'matplotlib'
+        'matplotlib',
+        'pandas',
+        'future'
     ],
     python_requires='>=3.9',
     description='An extension of the BoTorch library adding new acquisition functions',
