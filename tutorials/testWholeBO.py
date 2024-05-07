@@ -6,7 +6,9 @@ from botorch.test_functions import Ackley, Hartmann
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 
-from mlmcbo.utils.latin_hypercube_generator import generate_latin_hypercube_points
+# latin hypercube initializer is used for comparison with 2-OPT results
+# past package is required to use this initializer - $ pip install future
+# from mlmcbo.utils.latin_hypercube_generator import generate_latin_hypercube_points
 from mlmcbo.utils.model_fit import GPmodel
 from mlmcbo.utils.objectiveFunctions import SelfDefinedFunction, Ackley5, SixHumpCamel2, Cosine, Levy10, Branin2
 import warnings
@@ -164,42 +166,42 @@ ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 plt.show()
 
 # GAP
-mean_gap_ml, median_gap_ml = GAP(results_ml, relative_gap, reference, R)
-mean_gap_sl, median_gap_sl = GAP(results_sl, relative_gap, reference, R)
+# mean_gap_ml, median_gap_ml = GAP(results_ml, relative_gap, reference, R)
+# mean_gap_sl, median_gap_sl = GAP(results_sl, relative_gap, reference, R)
 
-print("{} ML GAP Mean : {:.5f}, GAP Median : {:.5f}".format(fun_name, mean_gap_ml[-1], median_gap_ml[-1]))
-print("{} SL GAP Mean : {:.5f}, GAP Median : {:.5f}".format(fun_name, mean_gap_sl[-1], median_gap_sl[-1]))
+# print("{} ML GAP Mean : {:.5f}, GAP Median : {:.5f}".format(fun_name, mean_gap_ml[-1], median_gap_ml[-1]))
+# print("{} SL GAP Mean : {:.5f}, GAP Median : {:.5f}".format(fun_name, mean_gap_sl[-1], median_gap_sl[-1]))
 
-# simple regret
-regret_ml, errorBar_ml = compute_regret(results_ml, reference, fun_name, num_obs, n_runs, R, ML=True)
-regret_sl, errorBar_sl = compute_regret(results_sl, reference, fun_name, num_obs, n_runs, R, ML=False)
-func_eva = torch.arange(n_runs) + num_obs
+# # simple regret
+# regret_ml, errorBar_ml = compute_regret(results_ml, reference, fun_name, num_obs, n_runs, R, ML=True)
+# regret_sl, errorBar_sl = compute_regret(results_sl, reference, fun_name, num_obs, n_runs, R, ML=False)
+# func_eva = torch.arange(n_runs) + num_obs
 
-ymax = np.floor(np.log10(max(max(regret_ml + errorBar_ml), max(regret_sl + errorBar_sl))))
-ymin = np.ceil(np.log10(min(min(regret_ml - errorBar_ml), min(regret_sl - errorBar_sl))))
+# ymax = np.floor(np.log10(max(max(regret_ml + errorBar_ml), max(regret_sl + errorBar_sl))))
+# ymin = np.ceil(np.log10(min(min(regret_ml - errorBar_ml), min(regret_sl - errorBar_sl))))
 
-bar_ml = torch.log10(1 + errorBar_ml/regret_ml)
-bar_sl = torch.log10(1 + errorBar_sl/regret_ml)
+# bar_ml = torch.log10(1 + errorBar_ml/regret_ml)
+# bar_sl = torch.log10(1 + errorBar_sl/regret_ml)
 
-bar_ml[bar_ml < 0] = 0
-bar_sl[bar_sl < 0] = 0
+# bar_ml[bar_ml < 0] = 0
+# bar_sl[bar_sl < 0] = 0
 
-fig, ax = plt.subplots(1, 1, figsize=(10, 8))
-fig.tight_layout(pad=10.0)
-ax.errorbar(func_eva, torch.log10(regret_ml), xerr=None, yerr=bar_ml, fmt='--o', capsize=3)
-ax.errorbar(func_eva, torch.log10(regret_sl), xerr=None, yerr=bar_sl, fmt='--o', capsize=3)
-ax.grid()
-ax.legend(["MLMC1LA(1EI+2EI)", "MC1LA2EI"], fontsize=20, loc="upper right")
-ax.set_xlabel("Function Evaluations", fontsize=20)
-ax.set_ylabel("$\log$10(Simple Regret)", fontsize=20)
-ax.tick_params(axis='both', labelsize=20)
-# ax.set_ylim([ymin, ymax])
-ax.xaxis.get_major_formatter()
-# ax.yaxis.set_major_locator(mticker.MultipleLocator(1))
-# ax.yaxis.set_major_formatter(FormatStrFormatter('%d'))
-ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-# plt.savefig("../Figures/Regret{}".format(fun_name))
-plt.show()
+# fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+# fig.tight_layout(pad=10.0)
+# ax.errorbar(func_eva, torch.log10(regret_ml), xerr=None, yerr=bar_ml, fmt='--o', capsize=3)
+# ax.errorbar(func_eva, torch.log10(regret_sl), xerr=None, yerr=bar_sl, fmt='--o', capsize=3)
+# ax.grid()
+# ax.legend(["MLMC1LA(1EI+2EI)", "MC1LA2EI"], fontsize=20, loc="upper right")
+# ax.set_xlabel("Function Evaluations", fontsize=20)
+# ax.set_ylabel("$\log$10(Simple Regret)", fontsize=20)
+# ax.tick_params(axis='both', labelsize=20)
+# # ax.set_ylim([ymin, ymax])
+# ax.xaxis.get_major_formatter()
+# # ax.yaxis.set_major_locator(mticker.MultipleLocator(1))
+# # ax.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+# ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+# # plt.savefig("./Figures/Regret{}".format(fun_name))
+# plt.show()
 
 
 
