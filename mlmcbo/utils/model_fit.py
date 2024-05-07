@@ -17,7 +17,7 @@ def GPmodel(train_x, train_y, bounds=None, mod='Matern'):
                              # outcome_transform=Standardize(m=1)
                              )
     else:
-        train_yvar = torch.full_like(train_y, 1e-3)
+        train_yvar = torch.full_like(train_y, 1e-4)
         kernel = ScaleKernel(RBFKernel())
         # outcome_transform = Standardize(m=1)
         model = FixedNoiseGP(train_x,
