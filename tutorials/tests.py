@@ -16,7 +16,7 @@ from torch import Tensor
 from mlmcbo.acquisition_functions.mc_one_step_lookahead import (qExpectedImprovementOneStepLookahead,
                                                                 ExpectedImprovementOneStepLookahead)
 from mlmcbo.acquisition_functions.mlmc_inc_functions import qEIMLMCOneStep, qEIMLMCTwoStep
-from mlmcbo.utils.optimize_mlmc import optimize_mlmc
+from mlmcbo.utils.optimize_mlmc import optimize_mlmc, optimize_mlmc_two
 
 TAcqfArgConstructor = Callable[[Model, Tensor], Dict[str, Any]]
 torch.set_default_dtype(torch.double)
@@ -96,7 +96,7 @@ qEI = qEIMLMCOneStep(
     bounds=bounds,
     num_restarts=30,
     raw_samples=100,
-    antithetic_variates=True,
+    q=1,
     batch_sizes=[2]
 )
 
@@ -117,16 +117,18 @@ print(f'New candidate [MLMC One-Step Lookahead qEI] = {new_candidate}')
 # MLMC Two-Step Lookahead qEI
 # ------------------------------------------------------------------------------------------
 
-qEI = qEIMLMCTwoStep(
+twoqEI = qEIMLMCTwoStep(
     model=model,
     bounds=bounds,
     num_restarts=30,
     raw_samples=100
+    q=1
+    batch_sizes=[1, 1]
 )
 
 torch.manual_seed(seed=0)
-new_candidate, _, _ = optimize_mlmc(
-    inc_function=qEI,
+new_candidate, _, _ = optimize_mlmc_two(
+    inc_function=twoqEI,
     eps=1e-1,
     dl=3,
     alpha=1,
