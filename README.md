@@ -10,6 +10,7 @@ on [BoTorch](https://github.com/pytorch/botorch/tree/main).
 - BoTorch == 0.9.2
 - Python >= 3.9 (BoTorch requirement)
 - NumPy >= 1.18
+- Pandas (for data savings)
 
 ### Pre-installation
 
