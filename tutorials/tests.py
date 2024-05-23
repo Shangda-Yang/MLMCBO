@@ -36,7 +36,7 @@ model = SingleTaskGP(
     outcome_transform=Standardize(m=1)
 )
 mll = ExactMarginalLogLikelihood(model.likelihood, model)
-fit_gpytorch_mll(mll);
+fit_gpytorch_mll(mll)
 
 # MC One-Step Lookahead EI
 # ------------------------------------------------------------------------------------------
@@ -121,8 +121,8 @@ twoqEI = qEIMLMCTwoStep(
     model=model,
     bounds=bounds,
     num_restarts=30,
-    raw_samples=100
-    q=1
+    raw_samples=100,
+    q=1,
     batch_sizes=[1, 1]
 )
 

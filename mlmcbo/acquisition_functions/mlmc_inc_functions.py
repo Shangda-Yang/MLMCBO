@@ -114,7 +114,15 @@ class qEIMLMCOneStep:
             #     match_candidate = new_candidate_c
             new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers,
                                                                return_best=False)
+            antithetic = True
+
+            if not antithetic:
+                inner_sampler = self._create_sampler(M//2)
+                inner_sampler.base_samples = inner_mc_samplers[1].base_samples[::2]
+                inner_mc_samplers[1] = inner_sampler
+                
             new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers,
+                                                               antithetic=True,
                                                                return_best=False)
             if match_mode == 'point':
                 diff_c = torch.argmin(torch.norm(match - new_candidate_c, dim=[1, 2]))
@@ -139,7 +147,7 @@ class qEIMLMCOneStep:
 
         return new_candidate, new_value, match_candidate
 
-    def get_candidates(self, samplers, inner_mc_samplers, antithetic=True, return_best=True):
+    def get_candidates(self, samplers, inner_mc_samplers, antithetic=False, return_best=True):
         r"""Generate the next observation of single one-step lookahead EI.
         Args:
             samplers: samplers for outer MC
