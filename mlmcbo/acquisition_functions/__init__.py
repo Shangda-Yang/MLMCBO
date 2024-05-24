@@ -1,2 +1,2 @@
-from .mc_one_step_lookahead import qExpectedImprovementOneStepLookahead, ExpectedImprovementOneStepLookahead
-from .mlmc_inc_functions import qEIMLMCOneStep, qEIMLMCTwoStep, CustomqMultiStepLookahead
+from .mc_two_step_lookahead import qExpectedImprovementTwoStepLookahead, ExpectedImprovementTwoStepLookahead
+from .mlmc_inc_functions import qEIMLMCTwoStep, qEIMLMCThreeStep, CustomqMultiStepLookahead

@@ -8,8 +8,6 @@ from botorch.acquisition import (
     MCAcquisitionObjective,
     qExpectedImprovement,
     qMultiStepLookahead, PosteriorMean, MCAcquisitionFunction,
-    # Re-written to allow passing inner samplers
-    qLogExpectedImprovement
 )
 from botorch.acquisition.multi_step_lookahead import make_best_f, _construct_sample_weights, _construct_inner_samplers, \
     _compute_stage_value
@@ -26,8 +24,8 @@ from torch.nn import ModuleList
 TAcqfArgConstructor = Callable[[Model, Tensor], Dict[str, Any]]
 
 
-class qEIMLMCOneStep:
-    r"""Class for one-step lookahead q-EI with MLMC (2-EI) by default"""
+class qEIMLMCTwoStep:
+    r"""Class for two-step lookahead q-EI with MLMC (2-EI) by default"""
 
     def __init__(self, model, bounds, num_restarts, raw_samples, q=1, batch_sizes=None):
         r"""
@@ -131,7 +129,7 @@ class qEIMLMCOneStep:
         return new_candidate, new_value, match_candidate
 
     def get_candidates(self, samplers, inner_mc_samplers, antithetic=False, return_best=True):
-        r"""Generate the next observation of single one-step lookahead EI.
+        r"""Generate the next observation of single two-step lookahead EI.
         Args:
             samplers: samplers for outer MC
             inner_mc_samplers: samplers for inner MC
@@ -340,343 +338,8 @@ class qExpectedImprovementAnt(qExpectedImprovement):
         return (obj - self.best_f.unsqueeze(-1).to(obj)).clamp_min(0)
 
 
-class qLogEIMLMCOneStep:
-    r"""Class for one-step lookahead q-logEI with MLMC (2-logEI) by default"""
-
-    def __init__(self, model, bounds, num_restarts, raw_samples, q=[2], batch_sizes=[2]):
-        r"""
-        Args:
-            bounds: bounds of objective function
-            model: a fitted single-outcome model
-            num_restarts: number of restarts for LBFGS
-            raw_samples: number of raw samples for LBFGS
-            batch_sizes: array for q of q-EI, default is [2] (2-EI)
-        """
-        self.model = model
-        self.bounds = bounds
-        self.num_restarts = num_restarts
-        self.raw_samples = raw_samples
-        self.q = q
-        self.batch_sizes = batch_sizes
-
-    @staticmethod
-    def _create_sampler(num_samples, seed):
-        r"""Initialize sampler with a seed for coupling"""
-        return IIDNormalSampler(sample_shape=torch.Size([num_samples]), seed=seed)
-
-    def sample_candidate(self, l, dl, num_samples, match=None):
-        r"""Generate new observations with MLMC
-        Args:
-            l: index level of estimation (starting from 0)
-            dl: starting level (l <- l + dl)
-            num_samples: number of outer samples
-            match: if True matching the optimizer generated at level l with level l-1,
-                   so that MLMC tracks the same optimizer among levels;
-                   No need to match at level 0
-        Returns:
-            Three elements tuple
-            new_candidate: next candidate point by MLMC (optimizer)
-            new_value: corresponding value of objective by MLMC (optimum)
-            match_candidate: candidate used for matching in the next level
-        """
-
-        # number of inner samples
-        M = 2 ** (l + dl)
-
-        # fixed seed of base samples for coupling
-        # No need to coupling for level 0 (single level estimator instead of increments)
-        seed_out, seed_in = (torch.randint(0, 10000000, (1,)).item() for _ in range(2))
-
-        sampler = self._create_sampler(num_samples, seed_out)
-
-        samplers = [sampler]
-        inner_mc_samplers = [sampler, self._create_sampler(M, seed_in)]
-
-        if l == 0:
-            new_candidate, new_value = self.get_candidates(samplers, inner_mc_samplers)
-            match_candidate = new_candidate
-        else:
-            # if match is not None:
-            new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers,
-                                                               return_best=False)
-            #     diff_c = torch.argmin(torch.norm(match - new_candidate_c, dim=(1, 2)))
-            #     diff_f = torch.argmin(torch.norm(new_candidate_f - new_candidate_c[diff_c], dim=(1, 2)))
-            #     new_candidate = new_candidate_f[diff_f] - new_candidate_c[diff_c]
-            #     new_value = new_value_f[diff_f] - new_value_c[diff_c]
-            #     match_candidate = new_candidate_f[diff_f]
-            #
-            #
-            # else:
-            #     new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers)
-            #     new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers)
-            #     new_candidate = new_candidate_f - new_candidate_c
-            #     new_value = new_value_f - new_value_c
-            #     match_candidate = new_candidate_c
-            if match is None:
-            # if match is not None:
-                match = new_candidate_f
-            diff_f = torch.argmin(dist_matrix(match, new_candidate_f), dim=1)
-            new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers,
-                                                                antithetic=True,
-                                                                return_best=False)
-            diff_c = torch.argmin(dist_matrix(new_candidate_f[diff_f], new_candidate_c), dim=1)
-
-            # diff_c = torch.argmin(dist_matrix(match, new_candidate_c), dim=1)
-            # diff_f = torch.argmin(dist_matrix(new_candidate_c[diff_c], new_candidate_f), dim=1)
-            new_candidate = new_candidate_f[diff_f] - new_candidate_c[diff_c]
-            new_value = new_value_f[diff_f] - new_value_c[diff_c]
-            # match_candidate = new_candidate_f[torch.topk(new_value, 1)[3]]
-            match_candidate = new_candidate_c[diff_c]
-
-        return new_candidate, new_value, match_candidate
-
-    def get_candidates(self, samplers, inner_mc_samplers, antithetic=False, return_best=True):
-        r"""Generate the next observation of single one-step lookahead EI.
-        Args:
-            samplers: samplers for outer MC
-            inner_mc_samplers: samplers for inner MC
-            antithetic: whether to compute antithetic estimator
-            return_best: whether to return the best result of objective function optimization
-        Returns:
-            new_candidate: next candidate point (optimizer)
-            new_value: corresponding value of objective (optimum)
-        """
-
-        # initialize the acquisition function for the zero and first steps
-        valfunc_cls = [qLogExpectedImprovement, qLogExpectedImprovement if antithetic is False else qExpectedImprovementAnt]
-        valfunc_argfacs = [make_best_f, make_best_f]
-
-        oneqEI = CustomqMultiStepLookahead(
-            model=self.model,
-            batch_sizes=self.batch_sizes,
-            num_fantasies=None,
-            samplers=samplers,
-            valfunc_cls=valfunc_cls,
-            valfunc_argfacs=valfunc_argfacs,
-            inner_mc_samplers=inner_mc_samplers
-        )
-
-        q_prime = oneqEI.get_augmented_q_batch_size(self.q)
-        new_candidate, new_value = optimize_acqf(
-            acq_function=oneqEI,
-            bounds=self.bounds,
-            q=q_prime,
-            num_restarts=self.num_restarts,
-            raw_samples=self.raw_samples,
-            return_best_only=return_best
-        )
-
-        return new_candidate, new_value
-
-
-# class qEIMLMCTwoStep:
-#     def __init__(self, model, bounds, num_restarts, raw_samples):
-#         self.model = model
-#         self.bounds = bounds
-#         self.num_restarts = num_restarts
-#         self.raw_samples = raw_samples
-#
-#     @staticmethod
-#     def _create_sampler(num_samples, base_samples):
-#         sampler = IIDNormalSampler(sample_shape=torch.Size([num_samples]), resample=False)
-#         sampler.base_samples = base_samples
-#         return sampler
-#
-#     def get_candidates(self, samplers, fc):
-#         twoEI = TwoStepIncAntEI(
-#             model=self.model,
-#             samplers=samplers,
-#             bounds=self.bounds,
-#             fc=fc
-#         )
-#         q = twoEI.get_augmented_q_batch_size(1)
-#         new_candidate, _ = optimize_acqf(
-#             acq_function=twoEI,
-#             bounds=self.bounds,
-#             q=q,
-#             num_restarts=self.num_restarts,
-#             raw_samples=self.raw_samples
-#         )
-#         return new_candidate
-#
-#     def sample_candidate(self, l, dl, num_samples, **kwargs):
-#         M = 2 ** (l + dl)
-#
-#         base_samples1 = torch.randn(num_samples)
-#         base_samples2 = torch.randn(M)
-#
-#         sampler1 = self._create_sampler(num_samples, base_samples1)
-#
-#         if l == 0:
-#             sampler2 = self._create_sampler(M, base_samples2)
-#             new_candidate = self.get_candidates([sampler1, sampler2], fc=0)
-#         else:
-#             sampler2f = self._create_sampler(M, base_samples2)
-#             new_candidate_f = self.get_candidates([sampler1, sampler2f], fc=0)
-#
-#             sampler2c1 = self._create_sampler(M // 2, base_samples2[1::2])
-#             sampler2c2 = self._create_sampler(M // 2, base_samples2[::2])
-#             new_candidate_c = self.get_candidates([sampler1, sampler2c1, sampler2c2], fc=1)
-#
-#             new_candidate = new_candidate_f - new_candidate_c
-#
-#         return new_candidate
-#
-#
-# class TwoStepIncAntEI(qMultiStepLookahead):
-#
-#     def __init__(
-#             self,
-#             model: Model,
-#             bounds: Tensor,
-#             samplers: List[MCSampler],
-#             fc: int,
-#             **kwargs
-#     ) -> None:
-#         self.k = 2
-#         batch_sizes = [1, 1]
-#         super().__init__(model=model,
-#                          batch_sizes=batch_sizes,
-#                          samplers=samplers,
-#                          **kwargs)
-#         if fc == 1:
-#             num_fantasies = [samplers[i].sample_shape[0] for i in range(len(samplers) - 1)]
-#             self.num_fantasies = num_fantasies
-#         self.bounds = bounds
-#         self.fc = fc
-#
-#     @t_batch_mode_transform()
-#     def forward(self, X: Tensor) -> Tensor:
-#         Xs = self.get_multi_step_tree_input_representation(X)
-#
-#         if not self._collapse_fantasy_base_samples:
-#             self._set_samplers_batch_range(batch_shape=X.shape[:-2])
-#
-#         X0 = Xs[0]
-#         sample_weights = torch.ones(*X0.shape[:-2], device=X.device, dtype=X.dtype)
-#         best_f0 = self.model.train_targets.max()
-#         stage_val_func0 = ExpectedImprovement(model=self.model, best_f=best_f0)
-#         stage_val0 = stage_val_func0(X=X0)
-#         running_val = stage_val0
-#
-#         fantasy_model1 = self.model.fantasize(
-#             X=X0, sampler=self.samplers[0], observation_noise=False, propagate_grads=True
-#         )
-#
-#         sample_weights = _construct_sample_weights(
-#             prev_weights=sample_weights, sampler=self.samplers[0]
-#         )
-#         if self.fc == 0:
-#
-#             X1 = Xs[1]
-#             best_f1 = fantasy_model1.train_targets.max()
-#             stage_val_func1 = ExpectedImprovement(model=fantasy_model1, best_f=best_f1)
-#             stage_val1 = stage_val_func1(X=X1)
-#             running_val = running_val + stage_val1
-#
-#             X2 = Xs[2]
-#             fantasy_model2 = fantasy_model1.fantasize(
-#                 X=X1, sampler=self.samplers[1], observation_noise=False, propagate_grads=True
-#             )
-#             sample_weights = _construct_sample_weights(
-#                 prev_weights=sample_weights, sampler=self.samplers[1]
-#             )
-#
-#             best_f2 = fantasy_model2.train_targets.max()
-#             stage_val_func2 = ExpectedImprovement(model=fantasy_model2, best_f=best_f2)
-#             stage_val2 = stage_val_func2(X=X2)
-#             running_val = running_val + stage_val2
-#
-#             batch_shape = running_val.shape[self.k:]
-#             sample_weights = sample_weights.expand(running_val.shape)
-#             return (running_val * sample_weights).view(-1, *batch_shape).sum(dim=0)
-#         else:
-#             X11 = Xs[1]
-#             best_f1 = fantasy_model1.train_targets.max()
-#             stage_val_func11 = ExpectedImprovement(model=fantasy_model1, best_f=best_f1)
-#             stage_val11 = stage_val_func11(X=X11)
-#             running_val1 = running_val + stage_val11
-#
-#             X21 = Xs[2]
-#             fantasy_model21 = fantasy_model1.fantasize(
-#                 X=X11, sampler=self.samplers[1], observation_noise=False, propagate_grads=True
-#             )
-#
-#             best_f21 = fantasy_model21.train_targets.max()
-#             stage_val_func21 = ExpectedImprovement(model=fantasy_model21, best_f=best_f21)
-#             stage_val21 = stage_val_func21(X=X21)
-#             running_val1 = running_val1 + stage_val21
-#
-#             batch_shape1 = running_val1.shape[self.k:]
-#             sample_weights1 = sample_weights.expand(running_val1.shape)
-#
-#             X12 = Xs[3]
-#             stage_val_func12 = ExpectedImprovement(model=fantasy_model1, best_f=best_f1)
-#             stage_val12 = stage_val_func12(X=X12)
-#             running_val2 = running_val + stage_val12
-#
-#             X22 = Xs[4]
-#             fantasy_model22 = fantasy_model1.fantasize(
-#                 X=X12, sampler=self.samplers[2], observation_noise=False, propagate_grads=True
-#             )
-#
-#             best_f22 = fantasy_model22.train_targets.max()
-#             stage_val_func22 = ExpectedImprovement(model=fantasy_model22, best_f=best_f22)
-#             stage_val22 = stage_val_func22(X=X22)
-#             running_val2 = running_val2 + stage_val22
-#
-#             batch_shape2 = running_val2.shape[self.k:]
-#             sample_weights2 = sample_weights.expand(running_val2.shape)
-#
-#             return ((running_val1 * sample_weights1).view(-1, *batch_shape1).sum(dim=0) + \
-#                     (running_val2 * sample_weights2).view(-1, *batch_shape2).sum(dim=0)) / 2
-#
-#     @property
-#     def _num_auxiliary(self) -> int:
-#         r"""Number of auxiliary variables in the q-batch dimension.
-#
-#         Returns:
-#              `q_aux` s.t. `q + q_aux = augmented_q_batch_size`
-#         """
-#         if self.fc == 1:
-#             return 2 * super()._num_auxiliary
-#         return super()._num_auxiliary
-#
-#     def get_multi_step_tree_input_representation(self, X: Tensor) -> List[Tensor]:
-#         r"""Get the multistep tree representation of X.
-#
-#         Args:
-#             X: A `batch_shape x q' x d`-dim Tensor with `q'` design points for each
-#                 batch, where `q' = q_0 + f_1 q_1 + f_2 f_1 q_2 + ...`. Here `q_i`
-#                 is the number of candidates jointly considered in look-ahead step
-#                 `i`, and `f_i` is respective number of fantasies.
-#
-#         Returns:
-#             A list `[X_j, ..., X_k]` of tensors, where `X_i` has shape
-#             `f_i x .... x f_1 x batch_shape x q_i x d`.
-#
-#         """
-#         batch_shape, shapes, sizes = self.get_split_shapes(X=X)
-#         # Each X_i in Xsplit has shape batch_shape x qtilde x d with
-#         # qtilde = f_i * ... * f_1 * q_i
-#         if self.fc == 1:
-#             sizes += sizes[1:]
-#             shapes += shapes[1:]
-#         Xsplit = torch.split(X, sizes, dim=-2)
-#         # now reshape (need to permute batch_shape and qtilde dimensions for i > 0)
-#         perm = [-2] + list(range(len(batch_shape))) + [-1]
-#         X0 = Xsplit[0].reshape(shapes[0])
-#         Xother = [
-#             X.permute(*perm).reshape(shape) for X, shape in zip(Xsplit[1:], shapes[1:])
-#         ]
-#         # concatenate in pending points
-#         if self.X_pending is not None:
-#             X0 = torch.cat([X0, match_batch_shape(self.X_pending, X0)], dim=-2)
-#
-#         return [X0] + Xother
-
-class qEIMLMCTwoStep:
-    r"""Class for two-step lookahead q-EI with MLMC (2-EI) by default"""
+class qEIMLMCThreeStep:
+    r"""Class for three-step lookahead q-EI with MLMC (1-EI) by default"""
 
     def __init__(self, model, bounds, num_restarts, raw_samples, q=1, batch_sizes=None):
         r"""
@@ -686,10 +349,10 @@ class qEIMLMCTwoStep:
             num_restarts: number of restarts for LBFGS
             raw_samples: number of raw samples for LBFGS
             q: numer of batch observations generated each iteration
-            batch_sizes: array for q of q-EI, default is [2] (2-EI)
+            batch_sizes: array for q of q-EI, default is [1, 1] (1-EI)
         """
         if batch_sizes is None:
-            batch_sizes = [2, 2]
+            batch_sizes = [1, 1]
         self.model = model
         self.bounds = bounds
         self.num_restarts = num_restarts
@@ -797,7 +460,7 @@ class qEIMLMCTwoStep:
                 valfunc_argfacs=valfunc_argfacs,
             )
         else:
-            twoqEI =TwoStepIncAntEI(
+            twoqEI =ThreeStepIncAntEI(
                 model=self.model,
                 batch_sizes=self.batch_sizes,
                 num_fantasies=None,
@@ -818,7 +481,7 @@ class qEIMLMCTwoStep:
         return new_candidate, new_value
 
 
-class TwoStepIncAntEI(qMultiStepLookahead):
+class ThreeStepIncAntEI(qMultiStepLookahead):
 
     def __init__(
             self,
@@ -929,42 +592,7 @@ def _antstep(
     objective: MCAcquisitionObjective,
     posterior_transform: PosteriorTransform,
 ) -> Tensor:
-    r"""Recursive multi-step look-ahead computation.
-
-    Helper function computing the "value-to-go" of a multi-step lookahead scheme.
-
-    Args:
-        model: A Model of appropriate batch size. Specifically, it must be possible to
-            evaluate the model's posterior at `Xs[0]`.
-        Xs: A list `[X_j, ..., X_k]` of tensors, where `X_i` has shape
-            `f_i x .... x f_1 x batch_shape x q_i x d`.
-        samplers: A list of `k - j` samplers, such that the number of samples of sampler
-            `i` is `f_i`. The last element of this list is considered the
-            "inner sampler", which is used for evaluating the objective in case it is an
-            MCAcquisitionObjective.
-        valfunc_cls: A list of acquisition function class to be used as the (stage +
-            terminal) value functions. Each element (except for the last one) can be
-            `None`, in which case a zero stage value is assumed for the respective
-            stage.
-        valfunc_argfacs: A list of callables that map a `Model` and input tensor `X` to
-            a dictionary of kwargs for the respective stage value function constructor.
-            If `None`, only the standard `model`, `sampler` and `objective` kwargs will
-            be used.
-        inner_samplers: A list of `MCSampler` objects, each to be used in the stage
-            value function at the corresponding index.
-        objective: The MCAcquisitionObjective under which the model output is evaluated.
-        posterior_transform: A PosteriorTransform. Used to transform the posterior
-            before sampling / evaluating the model output.
-        running_val: As `batch_shape`-dim tensor containing the current running value.
-        sample_weights: A tensor of shape `f_i x .... x f_1 x batch_shape` when called
-            in the `i`-th step by which to weight the stage value samples. Used in
-            conjunction with Gauss-Hermite integration or importance sampling. Assumed
-            to be `None` in the initial step (when `step_index=0`).
-        step_index: The index of the look-ahead step. `step_index=0` indicates the
-            initial step.
-
-    Returns:
-        A `b`-dim tensor containing the multi-step value of the design `X`.
+    r"""Antithetic estimator computation.
     """
     # compute zero step
     sample_weights = torch.ones(*Xs[0].shape[:-2], device=Xs[0].device, dtype=Xs[0].dtype)

@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 
 import warnings
-from runBO import runBOTwo
+from runBO import runBOThree
 
 import faulthandler
 
@@ -34,14 +34,14 @@ dim = target.dim
 num_obs = 2 * dim
 
 # number of BO runs
-n_runs = 3
+n_runs = 30
 
 # parameters for LBFGS
 num_restarts = 20  # number of restarts
 raw_samples = 256  # number of raw samples for each restarts
 
 # number of realisations
-R = 2
+R = 20
 
 # starting level of MLMC
 dl = 3
@@ -84,31 +84,31 @@ for i in range(R):
     # q is for number of batch size - qEI; for example, q = [2, 2] is qEI + qEI
     # ML=True - MLMC; ML=False - MC
     # match_mode = 'point', 'forward' or 'backward'
-    bo_mlmc = runBOTwo(target=target,
-                        train_x=train_x,
-                        train_y=train_y,
-                        n_runs=n_runs,
-                        bounds=bounds,
-                        num_restarts=num_restarts,
-                        raw_samples=raw_samples,
-                        eps=eps,
-                        q=[1, 1, 1],
-                        ML=True,
-                        dl=dl,
-                        match_mode=match_mode)
+    bo_mlmc = runBOThree(target=target,
+                         train_x=train_x,
+                         train_y=train_y,
+                         n_runs=n_runs,
+                         bounds=bounds,
+                         num_restarts=num_restarts,
+                         raw_samples=raw_samples,
+                         eps=eps,
+                         q=[1, 1, 1],
+                         ML=True,
+                         dl=dl,
+                         match_mode=match_mode)
     results_ml[i, :], costs_ml[i, :] = bo_mlmc.run()
     #
     print("MC starts")
     print("********************************************")
-    bo_mc = runBOTwo(target=target,
-                  train_x=train_x,
-                  train_y=train_y,
-                  n_runs=n_runs,
-                  bounds=bounds,
-                  num_restarts=num_restarts,
-                  raw_samples=raw_samples,
-                  eps=eps,
-                  ML=False)
+    bo_mc = runBOThree(target=target,
+                       train_x=train_x,
+                       train_y=train_y,
+                       n_runs=n_runs,
+                       bounds=bounds,
+                       num_restarts=num_restarts,
+                       raw_samples=raw_samples,
+                       eps=eps,
+                       ML=False)
     results_sl[i, :], costs_sl[i, :] = bo_mc.run()
 
 

@@ -24,8 +24,8 @@ from torch.nn import ModuleList
 TAcqfArgConstructor = Callable[[Model, Tensor], Dict[str, Any]]
 
 
-class ExpectedImprovementOneStepLookahead(qKnowledgeGradient):
-    r"""one-step lookahead expected improvement
+class ExpectedImprovementTwoStepLookahead(qKnowledgeGradient):
+    r"""two-step lookahead expected improvement
     implemented in a one-shot fashion"""
 
     def __int__(
@@ -179,7 +179,7 @@ class qExpectedImprovementAnt(qExpectedImprovement):
         return (q_ei_1 + q_ei_2) / 2
 
 
-class qExpectedImprovementOneStepLookahead(qMultiStepLookahead):
+class qExpectedImprovementTwoStepLookahead(qMultiStepLookahead):
 
     def __init__(
             self,

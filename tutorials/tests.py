@@ -13,10 +13,10 @@ from botorch.test_functions import Hartmann
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from torch import Tensor
 
-from mlmcbo.acquisition_functions.mc_one_step_lookahead import (qExpectedImprovementOneStepLookahead,
-                                                                ExpectedImprovementOneStepLookahead)
-from mlmcbo.acquisition_functions.mlmc_inc_functions import qEIMLMCOneStep, qEIMLMCTwoStep
-from mlmcbo.utils.optimize_mlmc import optimize_mlmc, optimize_mlmc_two
+from mlmcbo.acquisition_functions.mc_two_step_lookahead import (qExpectedImprovementTwoStepLookahead,
+                                                                ExpectedImprovementTwoStepLookahead)
+from mlmcbo.acquisition_functions.mlmc_inc_functions import qEIMLMCTwoStep, qEIMLMCThreeStep
+from mlmcbo.utils.optimize_mlmc import optimize_mlmc, optimize_mlmc_three
 
 TAcqfArgConstructor = Callable[[Model, Tensor], Dict[str, Any]]
 torch.set_default_dtype(torch.double)
@@ -41,7 +41,7 @@ model = SingleTaskGP(
 mll = ExactMarginalLogLikelihood(model.likelihood, model)
 fit_gpytorch_mll(mll)
 
-# MC One-Step Lookahead EI
+# MC Two-Step Lookahead EI
 # ------------------------------------------------------------------------------------------
 eps = 0.25
 N = np.round((1 / np.power(eps, 2))).astype(int)
@@ -49,7 +49,7 @@ M = N
 
 sampler = IIDNormalSampler(sample_shape=torch.Size([N]), resample=False)
 inner_sampler = IIDNormalSampler(sample_shape=torch.Size([M]), resample=False)
-EI = ExpectedImprovementOneStepLookahead(
+EI = ExpectedImprovementTwoStepLookahead(
     model=model,
     num_fantasies=None,
     sampler=sampler,
@@ -67,11 +67,11 @@ new_candidate, _ = optimize_acqf(
 )
 print(f'New candidate [MC One-Step Lookahead EI] = {new_candidate}')
 
-# MC One-Step Lookahead qEI
+# MC Two-Step Lookahead qEI
 # ------------------------------------------------------------------------------------------
 batch_sizes = [2]
 
-qEI = qExpectedImprovementOneStepLookahead(
+qEI = qExpectedImprovementTwoStepLookahead(
     model=model,
     batch_sizes=batch_sizes,
     antithetic_variates=False
@@ -90,9 +90,9 @@ new_candidate, _ = optimize_acqf(
 )
 print(f'New candidate [MC One-Step Lookahead qEI] = {new_candidate}')
 
-# MLMC One-Step Lookahead qEI
+# MLMC Two-Step Lookahead qEI
 # ------------------------------------------------------------------------------------------
-qEI = qEIMLMCOneStep(
+qEI = qEIMLMCTwoStep(
     model=model,
     bounds=bounds,
     num_restarts=30,
@@ -115,9 +115,9 @@ new_candidate, _, _ = optimize_mlmc(
 )
 print(f'New candidate [MLMC One-Step Lookahead qEI] = {new_candidate}')
 
-# MLMC Two-Step Lookahead qEI
+# MLMC Three-Step Lookahead qEI
 # ------------------------------------------------------------------------------------------
-twoqEI = qEIMLMCTwoStep(
+threeqEI = qEIMLMCThreeStep(
     model=model,
     bounds=bounds,
     num_restarts=10,
@@ -126,8 +126,8 @@ twoqEI = qEIMLMCTwoStep(
     batch_sizes=[1, 1]
 )
 
-new_candidate, _, _ = optimize_mlmc_two(
-    inc_function=twoqEI,
+new_candidate, _, _ = optimize_mlmc_three(
+    inc_function=threeqEI,
     eps=0.1,
     dl=3,
     alpha=1,

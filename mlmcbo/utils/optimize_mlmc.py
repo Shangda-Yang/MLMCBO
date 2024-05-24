@@ -67,7 +67,7 @@ def optimize_mlmc(inc_function, eps, dl, alpha=1, beta=1.5, gamma=1, meanc=1, va
             return z[opt_ind], f[opt_ind], Nl
 
 
-def optimize_mlmc_two(inc_function, eps, dl, alpha=1, beta=1.5, gamma=1, meanc=1, varc=1, var0=1, match_mode='point'):
+def optimize_mlmc_three(inc_function, eps, dl, alpha=1, beta=1.5, gamma=1, meanc=1, varc=1, var0=1, match_mode='point'):
     r"""Optimize acquisition functions using mlmc.
 
     Args:

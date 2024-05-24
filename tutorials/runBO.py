@@ -7,11 +7,11 @@ from botorch.acquisition.multi_step_lookahead import make_best_f, qMultiStepLook
 from botorch.optim import optimize_acqf
 from botorch.sampling import IIDNormalSampler
 
-from mlmcbo.acquisition_functions import qEIMLMCOneStep, qEIMLMCTwoStep
+from mlmcbo.acquisition_functions import qEIMLMCTwoStep, qEIMLMCThreeStep
 from mlmcbo.acquisition_functions import CustomqMultiStepLookahead
 from mlmcbo.utils import optimize_mlmc
 from mlmcbo.utils.model_fit import GPmodel
-from mlmcbo.utils.optimize_mlmc import optimize_mlmc_two
+from mlmcbo.utils.optimize_mlmc import optimize_mlmc_three
 
 
 class runBO():
@@ -54,7 +54,7 @@ class runBO():
             model = GPmodel(self.train_x, self.train_y)
             if self.ML:
                 # MLMC BO
-                qEI = qEIMLMCOneStep(
+                qEI = qEIMLMCTwoStep(
                     model=model,
                     bounds=self.bounds,
                     num_restarts=self.num_restarts,
@@ -120,7 +120,7 @@ class runBO():
         return results, costs
 
 
-class runBOTwo():
+class runBOThree():
     r"""run BO with MLMC or MC and return the results and costs"""
     def __init__(self,
                  target,
@@ -160,7 +160,7 @@ class runBOTwo():
             model = GPmodel(self.train_x, self.train_y)
             if self.ML:
                 # MLMC BO
-                qEI = qEIMLMCTwoStep(
+                qEI = qEIMLMCThreeStep(
                     model=model,
                     bounds=self.bounds,
                     num_restarts=self.num_restarts,
@@ -169,7 +169,7 @@ class runBOTwo():
                     batch_sizes=self.q2
                 )
                 start_time = time.time()
-                new_candidate, _, _ = optimize_mlmc_two(inc_function=qEI,
+                new_candidate, _, _ = optimize_mlmc_three(inc_function=qEI,
                                                         eps=self.eps,
                                                         dl=self.dl,
                                                         alpha=1,
