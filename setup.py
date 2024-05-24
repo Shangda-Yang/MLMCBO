@@ -8,7 +8,6 @@ setup(
         'botorch==0.9.2',
         'numpy>=1.18.0',
         'matplotlib',
-        'pandas',
     ],
     python_requires='>=3.9',
     description='An extension of the BoTorch library adding new acquisition functions',
