@@ -38,7 +38,6 @@ File ```tests.py``` in the ```tutorials``` folder demonstrates basic usage of th
 - MC One-Step Lookahead EI
 - MC One-Step Lookahead qEI
 - MLMC One-Step Lookahead qEI
-- MLMC Two-Step Lookahead qEI
 - MLMC Two-Step Lookahead qEI (beta)
 
 File ```testWholeBo.py``` in the same folder demonstrates an example of a whole BO algorithm using MLMC and MC for 2-EI and plots the results.
