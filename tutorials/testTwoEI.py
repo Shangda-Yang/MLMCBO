@@ -1,15 +1,11 @@
 import os
-import numpy as np
-import pandas as pd
 import torch
 from botorch.test_functions import Ackley, Hartmann
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 
-from mlmcbo.utils.model_fit import GPmodel
-from mlmcbo.utils.objectiveFunctions import SelfDefinedFunction, Ackley5, SixHumpCamel2, Cosine, Levy10, Branin2
 import warnings
-from runBO import runBO
+from runBO import runBOTwo
 
 import faulthandler
 
@@ -38,14 +34,14 @@ dim = target.dim
 num_obs = 2 * dim
 
 # number of BO runs
-n_runs = 30
+n_runs = 3
 
 # parameters for LBFGS
 num_restarts = 20  # number of restarts
 raw_samples = 256  # number of raw samples for each restarts
 
 # number of realisations
-R = 20
+R = 2
 
 # starting level of MLMC
 dl = 3
@@ -61,9 +57,8 @@ costs_sl = torch.zeros(R, n_runs)
 reference = target.optimal_value
 
 # predefined accuracy - \varepsilon
-eps = 0.15
+eps = 0.2
 
-# initialise relative benchmark for NMSE
 relative = torch.zeros(R, 1)
 # initialise relative benchmark for GAP
 relative_gap = torch.zeros(R, 1)
@@ -89,23 +84,23 @@ for i in range(R):
     # q is for number of batch size - qEI; for example, q = [2, 2] is qEI + qEI
     # ML=True - MLMC; ML=False - MC
     # match_mode = 'point', 'forward' or 'backward'
-    bo_mlmc = runBO(target=target,
-                    train_x=train_x,
-                    train_y=train_y,
-                    n_runs=n_runs,
-                    bounds=bounds,
-                    num_restarts=num_restarts,
-                    raw_samples=raw_samples,
-                    eps=eps,
-                    q=[1, 2],
-                    ML=True,
-                    dl=dl,
-                    match_mode=match_mode)
+    bo_mlmc = runBOTwo(target=target,
+                        train_x=train_x,
+                        train_y=train_y,
+                        n_runs=n_runs,
+                        bounds=bounds,
+                        num_restarts=num_restarts,
+                        raw_samples=raw_samples,
+                        eps=eps,
+                        q=[1, 1, 1],
+                        ML=True,
+                        dl=dl,
+                        match_mode=match_mode)
     results_ml[i, :], costs_ml[i, :] = bo_mlmc.run()
-
+    #
     print("MC starts")
     print("********************************************")
-    bo_mc = runBO(target=target,
+    bo_mc = runBOTwo(target=target,
                   train_x=train_x,
                   train_y=train_y,
                   n_runs=n_runs,
@@ -113,7 +108,6 @@ for i in range(R):
                   num_restarts=num_restarts,
                   raw_samples=raw_samples,
                   eps=eps,
-                  q=[1, 2],
                   ML=False)
     results_sl[i, :], costs_sl[i, :] = bo_mc.run()
 
@@ -127,7 +121,7 @@ fig.tight_layout(pad=10.0)
 ax.errorbar(Cost_ml, MSE_ml, xerr=None, yerr=errorBar_ml, fmt='--o', capsize=3)
 ax.errorbar(Cost_sl, MSE_sl, xerr=None, yerr=errorBar_sl, fmt='--o', capsize=3)
 ax.grid()
-ax.legend(["MLMC", "MC"], fontsize=20, loc="lower left")
+ax.legend(["MLMC2LAEI", "MC2LAEI"], fontsize=20, loc="lower left")
 ax.set_xlabel("Expected cumulative wall time in second", fontsize=20)
 ax.set_ylabel("NMSE", fontsize=20)
 ax.tick_params(axis='both', labelsize=15)
@@ -136,4 +130,3 @@ ax.xaxis.get_major_formatter()
 ax.yaxis.set_major_formatter(FormatStrFormatter('%.2e'))
 ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 plt.show()
-
