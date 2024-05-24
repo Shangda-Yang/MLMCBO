@@ -23,9 +23,12 @@ torch.set_default_dtype(torch.double)
 
 neg_hartmann6 = Hartmann(dim=6, negate=True)
 torch.random.manual_seed(42)
-train_x = torch.rand(10, neg_hartmann6.dim)
-train_obj = neg_hartmann6(train_x).unsqueeze(-1)
 bounds = neg_hartmann6.bounds
+lower_bounds, upper_bounds = bounds[0], bounds[1]
+train_x = (upper_bounds - lower_bounds) * torch.rand(10, 6) + lower_bounds
+train_x = torch.rand(20, neg_hartmann6.dim)
+train_obj = neg_hartmann6(train_x).unsqueeze(-1)
+
 best_value = train_obj.max()
 print(f'Hartmann example:\nOptimal value = {neg_hartmann6.optimal_value}\nOptimizers = {neg_hartmann6.optimizers}')
 
@@ -66,7 +69,6 @@ print(f'New candidate [MC One-Step Lookahead EI] = {new_candidate}')
 
 # MC One-Step Lookahead qEI
 # ------------------------------------------------------------------------------------------
-
 batch_sizes = [2]
 
 qEI = qExpectedImprovementOneStepLookahead(
@@ -90,7 +92,6 @@ print(f'New candidate [MC One-Step Lookahead qEI] = {new_candidate}')
 
 # MLMC One-Step Lookahead qEI
 # ------------------------------------------------------------------------------------------
-
 qEI = qEIMLMCOneStep(
     model=model,
     bounds=bounds,
@@ -116,27 +117,26 @@ print(f'New candidate [MLMC One-Step Lookahead qEI] = {new_candidate}')
 
 # MLMC Two-Step Lookahead qEI
 # ------------------------------------------------------------------------------------------
-
 twoqEI = qEIMLMCTwoStep(
     model=model,
     bounds=bounds,
-    num_restarts=30,
-    raw_samples=100,
+    num_restarts=10,
+    raw_samples=256,
     q=1,
     batch_sizes=[1, 1]
 )
 
-torch.manual_seed(seed=0)
 new_candidate, _, _ = optimize_mlmc_two(
     inc_function=twoqEI,
-    eps=1e-1,
+    eps=0.1,
     dl=3,
     alpha=1,
     beta=1.5,
     gamma=1,
     meanc=1,
     varc=1,
-    var0=1
+    var0=1,
+    match_mode='point'
 )
 print(f'New candidate [MLMC Two-Step Lookahead qEI] = {new_candidate}')
 

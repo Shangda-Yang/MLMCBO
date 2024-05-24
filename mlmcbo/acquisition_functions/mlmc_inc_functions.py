@@ -95,23 +95,6 @@ class qEIMLMCOneStep:
                 new_value = new_value[diff]
                 match_candidate = new_candidate[diff]
         else:
-            # if match is not None:
-            #     new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers,
-            #                                                        return_best=False)
-            #     new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers,
-            #                                                        antithetic=True,
-            #                                                        return_best=False)
-            #     diff_c = torch.argmin(torch.norm(match - new_candidate_c, dim=(1, 2)))
-            #     diff_f = torch.argmin(torch.norm(new_candidate_f - new_candidate_c[diff_c], dim=(1, 2)))
-            #     new_candidate = new_candidate_f[diff_f] - new_candidate_c[diff_c]
-            #     new_value = new_value_f[diff_f] - new_value_c[diff_c]
-            #     match_candidate = new_candidate_f[diff_f]
-            # else:
-            #     new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers, return_best=False)
-            #     new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers, return_best=False)
-            #     new_candidate = new_candidate_f - new_candidate_c
-            #     new_value = new_value_f - new_value_c
-            #     match_candidate = new_candidate_c
             new_candidate_f, new_value_f = self.get_candidates(samplers, inner_mc_samplers,
                                                                return_best=False)
             antithetic = True
@@ -122,7 +105,7 @@ class qEIMLMCOneStep:
                 inner_mc_samplers[1] = inner_sampler
                 
             new_candidate_c, new_value_c = self.get_candidates(samplers, inner_mc_samplers,
-                                                               antithetic=True,
+                                                               antithetic=antithetic,
                                                                return_best=False)
             if match_mode == 'point':
                 diff_c = torch.argmin(torch.norm(match - new_candidate_c, dim=[1, 2]))
@@ -693,7 +676,7 @@ class qLogEIMLMCOneStep:
 #         return [X0] + Xother
 
 class qEIMLMCTwoStep:
-    r"""Class for one-step lookahead q-EI with MLMC (2-EI) by default"""
+    r"""Class for two-step lookahead q-EI with MLMC (2-EI) by default"""
 
     def __init__(self, model, bounds, num_restarts, raw_samples, q=1, batch_sizes=None):
         r"""
@@ -1018,7 +1001,7 @@ def _antstep(
     running_val = running_val + stage_val
 
     # construct fantasy points
-    base_samples = samplers[0].base_samples
+    base_samples = samplers[1].base_samples
     base_samples1 = base_samples[0::2]
     base_samples2 = base_samples[1::2]
     sampler1 = IIDNormalSampler(sample_shape=torch.Size([len(base_samples1)]))
@@ -1042,7 +1025,7 @@ def _antstep(
     stage_val1 = _compute_stage_value(
         model=fantasy_model1,
         valfunc_cls=valfunc_cls[2],
-        X=Xs[2],
+        X=Xs[2][0::2],
         objective=objective,
         posterior_transform=posterior_transform,
         inner_sampler=inner_samplers[2],
@@ -1052,14 +1035,14 @@ def _antstep(
     stage_val2 = _compute_stage_value(
         model=fantasy_model2,
         valfunc_cls=valfunc_cls[2],
-        X=Xs[2],
+        X=Xs[2][1::2],
         objective=objective,
         posterior_transform=posterior_transform,
         inner_sampler=inner_samplers[2],
         arg_fac=valfunc_argfacs[2],
     )
 
-    running_val = running_val + 1/2 * (stage_val1 + stage_val2)
+    running_val = running_val + 1/2 * torch.cat((stage_val1, stage_val2), dim=0)
 
     batch_shape = running_val.shape[2:]
     # expand sample weights to make sure it is the same shape as running_val,

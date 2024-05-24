@@ -6,27 +6,13 @@ from gpytorch import ExactMarginalLogLikelihood
 from gpytorch.kernels import ScaleKernel, RBFKernel
 
 
-def GPmodel(train_x, train_y, bounds=None, mod='Matern'):
+def GPmodel(train_x, train_y, bounds=None):
     # print(train_y)
-    if mod == 'Matern':
-        train_yvar = torch.full_like(train_y, 1e-4)
-        model = FixedNoiseGP(train_x,
-                             train_y,
-                             train_yvar,
-                             # input_transform=Normalize(d=train_x.shape[-1], bounds=bounds),
-                             # outcome_transform=Standardize(m=1)
-                             )
-    else:
-        train_yvar = torch.full_like(train_y, 1e-4)
-        kernel = ScaleKernel(RBFKernel())
-        # outcome_transform = Standardize(m=1)
-        model = FixedNoiseGP(train_x,
-                             train_y,
-                             train_yvar,
-                             covar_module=kernel,
-                             input_transform=Normalize(d=train_x.shape[-1], bounds=bounds),
-                             outcome_transform=Standardize(m=1)
-                             )
+    train_yvar = torch.full_like(train_y, 1e-4)
+    model = FixedNoiseGP(train_x,
+                         train_y,
+                         train_yvar,
+                        )
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     fit_gpytorch_mll(mll)
     return model

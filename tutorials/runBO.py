@@ -28,8 +28,7 @@ class runBO():
                  q=None,
                  ML=True,
                  dl=0,
-                 match_mode='point',
-                 kernel='Matern'):
+                 match_mode='point'):
         if q is None:
             q = [1, 2]
         self.target = target
@@ -45,7 +44,6 @@ class runBO():
         self.dl = dl
         self.ML = ML
         self.match_mode = match_mode
-        self.kernel = kernel
 
     def run(self):
         results = torch.zeros(1, self.n_runs)
@@ -53,7 +51,7 @@ class runBO():
 
         for j in range(self.n_runs):
             # fit Gaussian process
-            model = GPmodel(self.train_x, self.train_y, mod=self.kernel)
+            model = GPmodel(self.train_x, self.train_y)
             if self.ML:
                 # MLMC BO
                 qEI = qEIMLMCOneStep(
@@ -136,8 +134,7 @@ class runBOTwo():
                  q=None,
                  ML=True,
                  dl=0,
-                 match_mode='point',
-                 kernel='Matern'):
+                 match_mode='point'):
         if q is None:
             q = [1, 1, 1]
         self.target = target
@@ -153,7 +150,6 @@ class runBOTwo():
         self.dl = dl
         self.ML = ML
         self.match_mode = match_mode
-        self.kernel = kernel
 
     def run(self):
         results = torch.zeros(1, self.n_runs)
@@ -161,7 +157,7 @@ class runBOTwo():
 
         for j in range(self.n_runs):
             # fit Gaussian process
-            model = GPmodel(self.train_x, self.train_y, mod=self.kernel)
+            model = GPmodel(self.train_x, self.train_y)
             if self.ML:
                 # MLMC BO
                 qEI = qEIMLMCTwoStep(
