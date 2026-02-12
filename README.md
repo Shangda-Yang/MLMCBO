@@ -1,6 +1,6 @@
 # MLMCBO
 
-MLMCBO is a library for the Multilevel Monte Carlo Bayesian Optimization method [to be linked to arxiv paper]. The package is based on the package [BoTorch](https://github.com/pytorch/botorch/tree/main).
+MLMCBO is a library for the [[Multilevel Monte Carlo Bayesian Optimization method](https://openreview.net/pdf?id=46vXhZn7lN)]. The package is based on the package [BoTorch](https://github.com/pytorch/botorch/tree/main).
 
 **TL;DR** Multilevel Monte Carlo accelerates nested Monte Carlo approximations (sometimes by several orders of magnitude). The current package leverages this technology to speed up the evaluation of lookahead acquisition functions for Bayesian optimization.
 
